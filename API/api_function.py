@@ -1,4 +1,4 @@
-import requests
+import aiohttp
 from decouple import config
 
 # DeepL API endpoint
@@ -7,14 +7,14 @@ deepl_api_endpoint = "https://api-free.deepl.com/v2/translate"
 api_key = config("API_KEY")
 
 
-def api_connect(text, target_lang):
-    user_input = text
-    # Specify the parameters for the DeepL API request
-    params = {
-        "auth_key": api_key,  # Your DeepL API key
-        "text": user_input,
-        "target_lang": target_lang,  # Target language (e.g., Russian)
-    }
-
-    res = requests.get(deepl_api_endpoint, params=params)
-    return res
+async def api_connect(text, target_lang):
+    async with aiohttp.ClientSession() as session:
+        async with session.post(
+            deepl_api_endpoint,
+            data={
+                "auth_key": api_key,
+                "text": text,
+                "target_lang": target_lang,
+            },
+        ) as response:
+            return await response.json()
