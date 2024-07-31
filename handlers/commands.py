@@ -1,22 +1,39 @@
 from aiogram import Router, types
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
+from aiogram import types
+from aiogram.types import InputFile
+import os
 from aiogram.fsm.context import FSMContext
 from states.translate_states import TranslateStates
-from API.api_function import api_connect
-from keyboards.inline_markup import create_language_markup, create_dates_markup
-from database.db_functions import update_user
+import asyncio
+from API.api_function import (
+    api_connect,
+    api_connect_document,
+    download_translated_document,
+    check_translation_status,
+)
+from keyboards.inline_markup import (
+    create_language_markup,
+    create_dates_markup,
+    create_file_language_markup,
+)
 import json
 from database.db_functions import (
     get_user_history,
     delete_user_history,
     get_user_history_dates,
+    update_user,
 )
+from bot_instance import bot
+
+
+DOWNLOADS_FOLDER = "downloads"
 
 router = Router()
 
 
 @router.message(Command("translate"))
-async def cmd_start(message: types.Message):
+async def translate(message: types.Message):
     await message.answer(
         "Please choose a language to translate to:",
         reply_markup=create_language_markup(),
@@ -42,7 +59,7 @@ async def show_history(message: types.Message):
 
 
 @router.message(Command("history_dates"))
-async def cmd_history_dates(message: types.Message):
+async def history_dates(message: types.Message):
     user_id = message.from_user.id
     dates = await get_user_history_dates(user_id)
 
@@ -56,7 +73,7 @@ async def cmd_history_dates(message: types.Message):
 
 
 @router.message(Command("delete_history"))
-async def cmd_delete_history(message: types.Message):
+async def delete_history(message: types.Message):
     user_id = message.from_user.id
     deleted_count = await delete_user_history(user_id)
 
@@ -95,3 +112,77 @@ async def translate_function(message: types.Message, state: FSMContext):
         await state.set_state(
             TranslateStates.CHOOSE_LANGUAGE
         )  # Reset state to choose language
+
+
+@router.message(Command("translate_file"))
+async def translate_file(message: types.Message, state: FSMContext):
+    await message.answer(
+        "Please choose a language to translate the document to:",
+        reply_markup=create_file_language_markup(),
+    )
+    await state.set_state(TranslateStates.CHOOSE_FILE_LANGUAGE)
+
+
+@router.message(TranslateStates.UPLOAD_DOCUMENT)
+async def handle_document_upload(message: types.Message, state: FSMContext):
+    try:
+        document = message.document
+        if not document:
+            await message.answer("No document found. Please upload a valid document.")
+            return
+
+        file_path = os.path.join(DOWNLOADS_FOLDER, document.file_name)
+        file_info = await bot.get_file(document.file_id)
+        file_path_telegram = file_info.file_path
+
+        await bot.download_file(file_path_telegram, file_path)
+        await message.answer(f"Document saved to {file_path}")
+
+        data = await state.get_data()
+        target_lang = data.get("target_lang")
+        if not target_lang:
+            await message.answer("Target language not specified. Please try again.")
+            return
+
+        translation_response = await api_connect_document(file_path, target_lang)
+        if "error" in translation_response:
+            await message.answer("Failed to translate the document. Please try again.")
+            return
+
+        document_id = translation_response.get("document_id")
+        document_key = translation_response.get("document_key")
+
+        for _ in range(30):
+            status_response = await check_translation_status(document_id, document_key)
+            if status_response.get("status") == "done":
+                translated_file_path = os.path.join(
+                    DOWNLOADS_FOLDER, f"translated_{document.file_name}"
+                )
+                download_response = await download_translated_document(
+                    document_id, document_key, translated_file_path
+                )
+                if "error" in download_response:
+                    await message.answer(
+                        "Failed to download the translated document. Please try again."
+                    )
+                else:
+                    if os.path.isfile(translated_file_path):
+                        translated_file = InputFile(translated_file_path)
+                        await message.answer_document(translated_file)
+                    else:
+                        await message.answer("Translated file not found.")
+                break
+            elif status_response.get("status") == "error":
+                await message.answer("An error occurred during translation.")
+                break
+            else:
+                await asyncio.sleep(5)
+        else:
+            await message.answer(
+                "Translation is taking longer than expected. Please try again later."
+            )
+    except Exception as e:
+        print(f"Error handling document upload: {e}")
+        await message.answer("An error occurred while handling the document.")
+    finally:
+        await state.clear()

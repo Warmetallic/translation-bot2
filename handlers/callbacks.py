@@ -1,13 +1,22 @@
 from aiogram import Router, types
+from aiogram.filters import Command, StateFilter
 from aiogram.filters.callback_data import CallbackData
 from aiogram.fsm.context import FSMContext
+from aiogram.types import ContentType
+from aiogram.handlers import MessageHandler
 from states.translate_states import TranslateStates
+from API.api_function import api_connect_document
 from database.db_functions import get_user_history_by_date
+from bot_instance import bot
 
 router = Router()
 
 
 class LanguageCallbackData(CallbackData, prefix="lang"):
+    language: str
+
+
+class FileLanguageCallbackData(CallbackData, prefix="file_lang"):
     language: str
 
 
@@ -50,3 +59,15 @@ async def process_date_selection(
 
     await callback_query.message.answer(response)
     await callback_query.answer()
+
+
+@router.callback_query(FileLanguageCallbackData.filter())
+async def process_file_language(
+    callback_query: types.CallbackQuery,
+    callback_data: FileLanguageCallbackData,
+    state: FSMContext,
+):
+    target_lang = callback_data.language
+    await state.update_data(target_lang=target_lang)
+    await callback_query.message.answer("Please upload the document to translate.")
+    await state.set_state(TranslateStates.UPLOAD_DOCUMENT)

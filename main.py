@@ -6,12 +6,12 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from decouple import config
 from handlers import commands, callbacks
 from database.db_functions import create_db
+from bot_instance import bot
 
 # Getting secret keys from decouple
 bot_key = config("BOT_KEY")
 
 # Initialize the Bot with DefaultBotProperties for default settings
-bot = Bot(token=bot_key, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher(storage=MemoryStorage())
 
 # Include routers
