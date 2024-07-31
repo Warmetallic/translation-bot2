@@ -58,7 +58,7 @@ async def cmd_history_dates(message: types.Message):
 @router.message(Command("delete_history"))
 async def cmd_delete_history(message: types.Message):
     user_id = message.from_user.id
-    deleted_count = delete_user_history(user_id)
+    deleted_count = await delete_user_history(user_id)
 
     if deleted_count > 0:
         response = f"Deleted {deleted_count} records from your Translation History."
@@ -81,7 +81,7 @@ async def translate_function(message: types.Message, state: FSMContext):
                 f"{translated_text}",
                 reply_markup=create_language_markup(),
             )
-            update_user(message.from_user.id, user_input, translated_text)
+            await update_user(message.from_user.id, user_input, translated_text)
         else:
             # Log the response for debugging
             print(f"API request failed with response: {res}")
