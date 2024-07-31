@@ -1,0 +1,11 @@
+services:
+  app:
+    build: .
+    container_name: translation-bot-2
+    environment:
+      BOT_KEY: ${BOT_KEY}
+      API_KEY: ${API_KEY}
+    volumes:
+      - .:/app
+    command: python app/main.py
+    restart: unless-stopped
