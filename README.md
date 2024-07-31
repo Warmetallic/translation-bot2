@@ -8,6 +8,8 @@
 
 **Translation Bot 2** is a sophisticated and user-friendly bot designed to provide efficient translation services using various APIs, including DeepL. It supports multiple languages, offering a seamless experience for users who need translations in different languages. The bot is easily deployable using Docker and Docker Compose, making it accessible for a wide range of users.
 
+Bot is available in telegram for usage https://t.me/GK_translation_2_bot
+
 ## Table of Contents
 
 - [Features](#features)
