@@ -18,13 +18,11 @@ dp = Dispatcher(storage=MemoryStorage())
 dp.include_router(commands.router)
 dp.include_router(callbacks.router)
 
-# Create SQLite database
-create_db()
-
 
 # Main function to start polling
 async def main():
     try:
+        await create_db()
         await dp.start_polling(bot)
     except asyncio.CancelledError:
         print("Polling cancelled.")

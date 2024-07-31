@@ -3,15 +3,19 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from states.translate_states import TranslateStates
 from API.api_function import api_connect
-from keyboards.inline_markup import create_language_markup
+from keyboards.inline_markup import create_language_markup, create_dates_markup
 from database.db_functions import update_user
 import json
-from database.db_functions import get_user_history, delete_user_history
+from database.db_functions import (
+    get_user_history,
+    delete_user_history,
+    get_user_history_dates,
+)
 
 router = Router()
 
 
-@router.message(Command("start"))
+@router.message(Command("translate"))
 async def cmd_start(message: types.Message):
     await message.answer(
         "Please choose a language to translate to:",
@@ -22,20 +26,33 @@ async def cmd_start(message: types.Message):
 @router.message(Command("history"))
 async def show_history(message: types.Message):
     user_id = message.from_user.id
-    history = get_user_history(user_id)
+    history = await get_user_history(user_id)
 
     if history:
         response = "Translation History:\n\n"
         for idx, entry in enumerate(history, 1):
             original_text = entry["original_text"]
             translated_text = entry["translated_text"]
-            response += (
-                f"{idx}. Original Text: {original_text}\nResult: {translated_text}\n\n"
-            )
+            created_at = entry["created_at"]
+            response += f"{idx}. Original Text: {original_text}\nResult: {translated_text}\n{created_at}\n\n"
     else:
         response = "Translation History is empty."
 
     await message.answer(response)
+
+
+@router.message(Command("history_dates"))
+async def cmd_history_dates(message: types.Message):
+    user_id = message.from_user.id
+    dates = await get_user_history_dates(user_id)
+
+    if dates:
+        await message.answer(
+            "Please choose a date to view the translation history:",
+            reply_markup=create_dates_markup(dates),
+        )
+    else:
+        await message.answer("No translation history found.")
 
 
 @router.message(Command("delete_history"))
