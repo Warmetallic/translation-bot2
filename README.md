@@ -1,7 +1,3 @@
-﻿Here's an enhanced README with detailed descriptions of the commands and features, including language support and formatting improvements:
-
----
-
 # Translation Bot 2
 
 ![Translation Bot](https://img.shields.io/badge/Translation-Bot-blue)
