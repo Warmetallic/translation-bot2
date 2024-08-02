@@ -27,7 +27,7 @@ from database.db_functions import (
 from bot_instance import bot
 
 
-DOWNLOADS_FOLDER = "downloads"
+DOWNLOADS_FOLDER = os.path.join("app", "downloads")
 
 router = Router()
 
@@ -135,8 +135,18 @@ async def handle_document_upload(message: types.Message, state: FSMContext):
         file_info = await bot.get_file(document.file_id)
         file_path_telegram = file_info.file_path
 
-        await bot.download_file(file_path_telegram, file_path)
-        await message.answer(f"Document saved to {file_path}")
+        # Log the paths for debugging
+        print(f"Telegram file path: {file_path_telegram}")
+        print(f"Local file path: {file_path}")
+
+        try:
+            os.makedirs(DOWNLOADS_FOLDER, exist_ok=True)
+            await bot.download_file(file_path_telegram, file_path)
+            print(f"Document saved to {file_path}")
+            await message.answer(f"Document saved to {file_path}")
+        except Exception as e:
+            print(f"Failed to download file: {e}")
+            await message.answer("An error occurred while downloading the document.")
 
         data = await state.get_data()
         target_lang = data.get("target_lang")
