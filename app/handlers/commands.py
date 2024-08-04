@@ -1,7 +1,7 @@
 from aiogram import Router, types
 from aiogram.filters import Command, StateFilter
 from aiogram import types
-from aiogram.types import InputFile
+from aiogram.types import FSInputFile
 import os
 from aiogram.fsm.context import FSMContext
 from states.translate_states import TranslateStates
@@ -123,6 +123,17 @@ async def translate_file(message: types.Message, state: FSMContext):
     await state.set_state(TranslateStates.CHOOSE_FILE_LANGUAGE)
 
 
+async def send_translated_document(user_id: int, file_path: str):
+    """Send the translated document to the user."""
+    try:
+        # Create an InputFile instance with the file path
+        input_file = FSInputFile(file_path)
+        await bot.send_document(chat_id=user_id, document=input_file)
+        print(f"Document sent to user {user_id}")
+    except Exception as e:
+        print(f"Failed to send document: {e}")
+
+
 @router.message(TranslateStates.UPLOAD_DOCUMENT)
 async def handle_document_upload(message: types.Message, state: FSMContext):
     try:
@@ -135,18 +146,14 @@ async def handle_document_upload(message: types.Message, state: FSMContext):
         file_info = await bot.get_file(document.file_id)
         file_path_telegram = file_info.file_path
 
-        # Log the paths for debugging
-        print(f"Telegram file path: {file_path_telegram}")
-        print(f"Local file path: {file_path}")
-
         try:
             os.makedirs(DOWNLOADS_FOLDER, exist_ok=True)
             await bot.download_file(file_path_telegram, file_path)
-            print(f"Document saved to {file_path}")
             await message.answer(f"Document saved to {file_path}")
         except Exception as e:
             print(f"Failed to download file: {e}")
             await message.answer("An error occurred while downloading the document.")
+            return
 
         data = await state.get_data()
         target_lang = data.get("target_lang")
@@ -162,35 +169,35 @@ async def handle_document_upload(message: types.Message, state: FSMContext):
         document_id = translation_response.get("document_id")
         document_key = translation_response.get("document_key")
 
-        for _ in range(30):
+        # Poll the document status until the translation is complete
+        while True:
             status_response = await check_translation_status(document_id, document_key)
-            if status_response.get("status") == "done":
-                translated_file_path = os.path.join(
-                    DOWNLOADS_FOLDER, f"translated_{document.file_name}"
-                )
-                download_response = await download_translated_document(
-                    document_id, document_key, translated_file_path
-                )
-                if "error" in download_response:
-                    await message.answer(
-                        "Failed to download the translated document. Please try again."
-                    )
-                else:
-                    if os.path.isfile(translated_file_path):
-                        translated_file = InputFile(translated_file_path)
-                        await message.answer_document(translated_file)
-                    else:
-                        await message.answer("Translated file not found.")
+            status = status_response.get("status")
+
+            if status == "completed" or status == "done":
                 break
-            elif status_response.get("status") == "error":
-                await message.answer("An error occurred during translation.")
-                break
-            else:
-                await asyncio.sleep(5)
-        else:
+            elif "error" in status_response:
+                await message.answer(
+                    "Error checking document status. Please try again."
+                )
+                return
+
+            await asyncio.sleep(10)  # Wait before polling again
+
+        # Download the translated document
+        output_path = os.path.join(DOWNLOADS_FOLDER, f"translated_{document.file_name}")
+        download_response = await download_translated_document(
+            document_id, document_key, output_path
+        )
+        if "error" in download_response:
             await message.answer(
-                "Translation is taking longer than expected. Please try again later."
+                "Failed to download the translated document. Please try again."
             )
+        else:
+            await send_translated_document(message.from_user.id, output_path)
+            await message.answer("Here is your translated document.")
+            await state.clear()
+
     except Exception as e:
         print(f"Error handling document upload: {e}")
         await message.answer("An error occurred while handling the document.")
