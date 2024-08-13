@@ -2,7 +2,6 @@ from aiogram import Router, types
 from aiogram.filters import Command, StateFilter
 from aiogram import types
 from aiogram.types import FSInputFile
-from utils.rabbitmq import publish_message
 import os
 from aiogram.fsm.context import FSMContext
 from states.translate_states import TranslateStates
@@ -35,7 +34,6 @@ router = Router()
 
 @router.message(Command("translate"))
 async def translate(message: types.Message):
-    publish_message("translate_queue", message.text)
     await message.answer(
         "Please choose a language to translate to:",
         reply_markup=create_language_markup(),
